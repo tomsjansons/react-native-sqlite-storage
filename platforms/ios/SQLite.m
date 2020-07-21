@@ -164,11 +164,12 @@ RCT_EXPORT_METHOD(open: (NSDictionary *) options success:(RCTResponseSenderBlock
   
   @synchronized (self) {
     NSString *dbfilename = options[@"name"];
+    NSString *dbConId = options[@"dbConId"];
     if (dbfilename == NULL) {
       RCTLog(@"No db name specified for open");
       pluginResult = [SQLiteResult resultWithStatus:SQLiteStatus_OK messageAsString:@"You must specify database name"];
     } else {
-      NSDictionary *dbInfo = openDBs[dbfilename];
+      NSDictionary *dbInfo = openDBs[dbConId];
       if (dbInfo != NULL && dbInfo[@"dbPointer"] != NULL) {
         RCTLog(@"Reusing existing database connection for db name %@", dbfilename);
         pluginResult = [SQLiteResult resultWithStatus:SQLiteStatus_OK messageAsString:@"Database opened"];
@@ -241,7 +242,7 @@ RCT_EXPORT_METHOD(open: (NSDictionary *) options success:(RCTResponseSenderBlock
           // Attempt to read the SQLite master table [to support SQLCipher version]:
           if(sqlite3_exec(db, (const char*)"SELECT count(*) FROM sqlite_master;", NULL, NULL, NULL) == SQLITE_OK) {
             NSValue *dbPointer = [NSValue valueWithPointer:db];
-            openDBs[dbfilename] = @{ @"dbPointer": dbPointer, @"dbPath" : dbname};
+            openDBs[dbConId] = @{ @"dbPointer": dbPointer, @"dbPath" : dbname};
             NSString *msg = (key != NULL) ? @"Secure database opened" : @"Database opened";
             pluginResult = [SQLiteResult resultWithStatus:SQLiteStatus_OK messageAsString: msg];
             RCTLog(@"%@", msg);
@@ -250,7 +251,7 @@ RCT_EXPORT_METHOD(open: (NSDictionary *) options success:(RCTResponseSenderBlock
             pluginResult = [SQLiteResult resultWithStatus:SQLiteStatus_ERROR messageAsString:msg];
             RCTLog(@"%@", msg);
             sqlite3_close (db);
-            [openDBs removeObjectForKey:dbfilename];
+            [openDBs removeObjectForKey:dbConId];
           }
         }
       }
@@ -289,12 +290,13 @@ RCT_EXPORT_METHOD(close: (NSDictionary *) options success:(RCTResponseSenderBloc
   SQLiteResult* pluginResult = nil;
   @synchronized (self) {
     NSString *dbFileName = options[@"path"];
+    NSString *dbConId = options[@"dbConId"];
     if (dbFileName == NULL) {
       // Should not happen:
       RCTLog(@"No db name specified for close");
       pluginResult = [SQLiteResult resultWithStatus:SQLiteStatus_ERROR messageAsString:@"You must specify database path"];
     } else {
-      NSDictionary *dbInfo = openDBs[dbFileName];
+      NSDictionary *dbInfo = openDBs[dbConId];
       if (dbInfo == NULL || dbInfo[@"dbPointer"] == NULL) {
         RCTLog(@"close: db name was not found in open databases: %@", dbFileName);
         pluginResult = [SQLiteResult resultWithStatus:SQLiteStatus_ERROR messageAsString:@"Specified db was not open"];
@@ -313,7 +315,7 @@ RCT_EXPORT_METHOD(close: (NSDictionary *) options success:(RCTResponseSenderBloc
         } else {
           RCTLog(@"close: closing db: %@", dbFileName);
             sqlite3_close (db);
-            [openDBs removeObjectForKey:dbFileName];
+            [openDBs removeObjectForKey:dbConId];
             pluginResult = [SQLiteResult resultWithStatus:SQLiteStatus_OK messageAsString:@"DB closed"];
         }
 
@@ -334,7 +336,7 @@ RCT_EXPORT_METHOD(attach: (NSDictionary *) options success:(RCTResponseSenderBlo
   SQLiteResult* pluginResult = nil;
   
   NSString *dbFileName = options[@"path"]; // path to current database instance
-
+  
   NSString *dbName = options[@"dbName"]; // dbName that should be attached to dbFileName
   NSString *dbAlias = options[@"dbAlias"]; // the Alias that should be use with ATTACH DATABASE
   
@@ -469,13 +471,14 @@ RCT_EXPORT_METHOD(executeSql: (NSDictionary *) options success:(RCTResponseSende
 -(SQLiteResult *) executeSqlWithDict: (NSMutableDictionary*)options andArgs: (NSMutableDictionary*)dbargs
 {
   NSString *dbfilename = dbargs[@"dbname"];
+  NSString *dbConId = dbargs[@"dbConId"];
   if (dbfilename == NULL) {
     return [SQLiteResult resultWithStatus:SQLiteStatus_ERROR messageAsString:@"You must specify database path"];
   }
   
   NSMutableArray *params = options[@"params"]; // optional
   
-  NSDictionary *dbInfo = openDBs[dbfilename];
+  NSDictionary *dbInfo = openDBs[dbConId];
   if (dbInfo == NULL || dbInfo[@"dbPointer"] == NULL){
     return [SQLiteResult resultWithStatus:SQLiteStatus_ERROR messageAsString:@"No such database, you must open it first"];
   }
