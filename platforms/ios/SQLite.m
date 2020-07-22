@@ -241,6 +241,7 @@ RCT_EXPORT_METHOD(open: (NSDictionary *) options success:(RCTResponseSenderBlock
 
           // Attempt to read the SQLite master table [to support SQLCipher version]:
           if(sqlite3_exec(db, (const char*)"SELECT count(*) FROM sqlite_master;", NULL, NULL, NULL) == SQLITE_OK) {
+            sqlite3_busy_timeout(db, 30000);
             NSValue *dbPointer = [NSValue valueWithPointer:db];
             openDBs[dbConId] = @{ @"dbPointer": dbPointer, @"dbPath" : dbname};
             NSString *msg = (key != NULL) ? @"Secure database opened" : @"Database opened";
